@@ -130,7 +130,7 @@ func TestRecord(t *testing.T) {
 func TestReplayingModeFailsWithEmptyCassette(t *testing.T) {
 	_, cassPath, _ := setupTests(t, "replaying_test")
 
-	_, err := recorder.NewAsMode(cassPath, recorder.ModeReplaying, nil)
+	_, err := recorder.NewAsMode(cassPath, recorder.ModeReplaying, nil, nil)
 	if err != cassette.ErrCassetteNotFound {
 		t.Fatalf("expected cassette.ErrCassetteNotFound, got %v", err)
 	}
@@ -333,7 +333,7 @@ func TestSaveFilter(t *testing.T) {
 
 func httpRecorderTestSetup(t *testing.T, runID string, cassPath string, mode recorder.Mode) (*recorder.Recorder, *httptest.Server) {
 	// Start our recorder
-	recorder, err := recorder.NewAsMode(cassPath, mode, http.DefaultTransport)
+	recorder, err := recorder.NewAsMode(cassPath, mode, http.DefaultTransport, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

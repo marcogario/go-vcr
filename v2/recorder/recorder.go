@@ -74,10 +74,29 @@ type Recorder struct {
 	// original request to simulate the latency between our
 	// recorder and the remote endpoints.
 	SkipRequestLatency bool
+
+	// The persister to use to write the cassette to file.
+	persister Persister
 }
 
 // Passthrough function allows ignoring certain requests.
 type Passthrough func(*http.Request) bool
+
+// A Persister is used to Save/Load the cassette from the file
+type Persister interface {
+	Save(*cassette.Cassette) error
+	Load(string) (*cassette.Cassette, error)
+}
+
+type DefaultPersister struct{}
+
+func (*DefaultPersister) Save(c *cassette.Cassette) error {
+	return c.Save()
+}
+
+func (*DefaultPersister) Load(name string) (*cassette.Cassette, error) {
+	return cassette.Load(name)
+}
 
 // SetTransport can be used to configure the behavior of the 'real' client used in record-mode
 func (r *Recorder) SetTransport(t http.RoundTripper) {
@@ -169,14 +188,18 @@ func requestHandler(r *http.Request, c *cassette.Cassette, mode Mode, realTransp
 // New creates a new recorder
 func New(cassetteName string) (*Recorder, error) {
 	// Default mode is "replay" if file exists
-	return NewAsMode(cassetteName, ModeReplaying, nil)
+	return NewAsMode(cassetteName, ModeReplaying, nil, nil)
 }
 
 // NewAsMode creates a new recorder in the specified mode
-func NewAsMode(cassetteName string, mode Mode, realTransport http.RoundTripper) (*Recorder, error) {
+func NewAsMode(cassetteName string, mode Mode, realTransport http.RoundTripper, p Persister) (*Recorder, error) {
 	var r = &Recorder{
 		mode:          mode,
 		realTransport: realTransport,
+	}
+
+	if p == nil {
+		r.persister = &DefaultPersister{}
 	}
 
 	if r.realTransport == nil {
@@ -206,7 +229,7 @@ func NewAsMode(cassetteName string, mode Mode, realTransport http.RoundTripper) 
 
 	// Load cassette from file and enter replay mode or replay/record mode
 	var err error
-	r.cassette, err = cassette.Load(cassetteName)
+	r.cassette, err = r.persister.Load(cassetteName)
 	if err != nil {
 		return nil, err
 	}
@@ -217,7 +240,7 @@ func NewAsMode(cassetteName string, mode Mode, realTransport http.RoundTripper) 
 // Stop is used to stop the recorder and save any recorded interactions
 func (r *Recorder) Stop() error {
 	if r.mode == ModeRecording || r.mode == ModeReplayingOrRecording {
-		if err := r.cassette.Save(); err != nil {
+		if err := r.persister.Save(r.cassette); err != nil {
 			return err
 		}
 	}
